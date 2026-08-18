@@ -248,9 +248,15 @@ function renderCourses(){
   });
 }
 
-document.addEventListener('DOMContentLoaded', ()=>{
+document.addEventListener('DOMContentLoaded', async ()=>{
   currentYear = getYearParam();
   activeTab = getTabParam();
+
+  const list = document.getElementById('course-list');
+  if (list) list.innerHTML = `<div class="empty-state">${t('loading') || 'Loading courses…'}</div>`;
+  if (window.cloudSyncReady) {
+    try { await window.cloudSyncReady; } catch (e) { /* sync warning already logged */ }
+  }
 
   // Instant Year Switcher click listener
   document.querySelectorAll('#year-switcher a').forEach(a=>{
