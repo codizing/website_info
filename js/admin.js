@@ -579,6 +579,17 @@ document.addEventListener('DOMContentLoaded', ()=>{
   }
 
   // ---- ADMIN AUTHENTICATION GATE ----
+  async function onAdminReady() {
+    if (window.Store && typeof Store.uploadLocalIfNeeded === 'function') {
+      const uploaded = await Store.uploadLocalIfNeeded();
+      if (uploaded) {
+        renderCourseTable();
+        renderQuizTable();
+        showToast(t('toast_saved') + ' (synced to cloud)');
+      }
+    }
+  }
+
   function checkAdminAuth() {
     const user = (typeof getAuthUser === 'function') ? getAuthUser() : null;
     let isAdmin = false;
@@ -603,6 +614,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
     if (gate) gate.style.display = 'none';
     if (shell) shell.style.display = 'grid';
     if (notice) notice.style.display = 'block';
+
+    onAdminReady();
   }
 
   const gateLoginBtn = document.getElementById('admin-gate-login-btn');
@@ -619,12 +632,19 @@ document.addEventListener('DOMContentLoaded', ()=>{
     });
   }
 
+  async function initAdminData() {
+    if (window.cloudSyncReady) {
+      try { await window.cloudSyncReady; } catch (e) { /* sync warning already logged */ }
+    }
+    renderCourseTable();
+    renderQuizTable();
+    renderUsersTable();
+  }
+
   checkAdminAuth();
   document.addEventListener('userchange', checkAdminAuth);
 
-  renderCourseTable();
-  renderQuizTable();
-  renderUsersTable();
+  initAdminData();
 
   document.addEventListener('langchange', ()=>{
     renderCourseTable();
