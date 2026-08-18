@@ -8,10 +8,8 @@ function getYearParam(){
     try { sessionStorage.setItem('csp_active_year', y); } catch(e){}
     return y;
   }
-  try {
-    const saved = Number(sessionStorage.getItem('csp_active_year'));
-    if ([1, 2].includes(saved)) return saved;
-  } catch(e){}
+  // Always default to year 1 — don't restore a saved year on a fresh visit
+  // (phones often open /courses.html with no ?year= and had year 2 saved)
   return 1;
 }
 
@@ -177,7 +175,24 @@ function renderCourses(){
     let emptyMsg = t('empty_courses');
     if(activeTab === 'td') emptyMsg = t('empty_td');
     else if(activeTab === 'exam') emptyMsg = t('empty_exams');
-    list.innerHTML = `<div class="empty-state">${emptyMsg}</div>`;
+
+    const otherYear = currentYear === 1 ? 2 : 1;
+    const otherYearCount = Store.getCourses(otherYear, activeTab).length;
+    const yearHint = otherYearCount
+      ? `<p style="margin-top:12px;font-size:13px;color:var(--text-faint);">${currentYear === 1 ? '2nd' : '1st'} Year has ${otherYearCount} item(s). <a href="courses.html?year=${otherYear}&tab=${activeTab}" style="color:var(--cyan);">Switch year</a></p>`
+      : '';
+
+    list.innerHTML = `
+      <div class="empty-state">
+        ${emptyMsg}
+        ${yearHint}
+        <button type="button" class="btn btn-ghost btn-sm" id="retry-sync-btn" style="margin-top:16px;">↻ Reload courses</button>
+      </div>`;
+
+    const retryBtn = document.getElementById('retry-sync-btn');
+    if (retryBtn) {
+      retryBtn.addEventListener('click', () => window.refreshCoursesFromCloud && window.refreshCoursesFromCloud());
+    }
     return;
   }
 
@@ -252,11 +267,20 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   currentYear = getYearParam();
   activeTab = getTabParam();
 
-  const list = document.getElementById('course-list');
-  if (list) list.innerHTML = `<div class="empty-state">${t('loading') || 'Loading courses…'}</div>`;
-  if (window.cloudSyncReady) {
-    try { await window.cloudSyncReady; } catch (e) { /* sync warning already logged */ }
+  async function loadCoursesFromCloud() {
+    const list = document.getElementById('course-list');
+    if (list) list.innerHTML = `<div class="empty-state">${t('loading') || 'Loading courses…'}</div>`;
+
+    if (window.refreshCloudSync) {
+      try { await window.refreshCloudSync(); } catch (e) { /* logged in firebase.js */ }
+    } else if (window.cloudSyncReady) {
+      try { await window.cloudSyncReady; } catch (e) { /* logged in firebase.js */ }
+    }
+
+    renderCourses();
   }
+
+  window.refreshCoursesFromCloud = loadCoursesFromCloud;
 
   // Instant Year Switcher click listener
   document.querySelectorAll('#year-switcher a').forEach(a=>{
@@ -287,7 +311,14 @@ document.addEventListener('DOMContentLoaded', async ()=>{
     });
   }
 
-  renderCourses();
+  await loadCoursesFromCloud();
+
+  // Mobile Safari often restores a cached page — re-fetch courses when user comes back
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted || !Store.getAllCourses().length) {
+      loadCoursesFromCloud();
+    }
+  });
 
   document.getElementById('modal-close').addEventListener('click', closeVideoModal);
   document.getElementById('video-modal').addEventListener('click', (e)=>{
