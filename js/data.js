@@ -105,46 +105,52 @@ const Store = {
   },
   async syncWithFirebase() {
     if (!window.FB_Sync) return;
-    try {
-      const db = loadDB();
+    const attempts = 3;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      try {
+        const db = loadDB();
 
-      const cloudCourses = await window.FB_Sync.fetchCourses();
-      const cloudQuizzes = await window.FB_Sync.fetchQuizzes();
-      const cloudUsers = await window.FB_Sync.fetchUsers();
+        const cloudCourses = await window.FB_Sync.fetchCourses();
+        const cloudQuizzes = await window.FB_Sync.fetchQuizzes();
+        const cloudUsers = await window.FB_Sync.fetchUsers();
 
-      let updated = false;
-      const cloudQuizCount = (cloudQuizzes?.[1]?.length || 0) + (cloudQuizzes?.[2]?.length || 0);
-      const localQuizCount = (db.quizzes[1]?.length || 0) + (db.quizzes[2]?.length || 0);
+        let updated = false;
+        const cloudQuizCount = (cloudQuizzes?.[1]?.length || 0) + (cloudQuizzes?.[2]?.length || 0);
+        const localQuizCount = (db.quizzes[1]?.length || 0) + (db.quizzes[2]?.length || 0);
 
-      if (cloudCourses?.length) {
-        db.courses = cloudCourses;
-        updated = true;
+        if (cloudCourses?.length) {
+          db.courses = cloudCourses;
+          updated = true;
+        }
+
+        if (cloudQuizCount) {
+          if (cloudQuizzes[1]?.length) db.quizzes[1] = cloudQuizzes[1];
+          if (cloudQuizzes[2]?.length) db.quizzes[2] = cloudQuizzes[2];
+          updated = true;
+        }
+
+        if (cloudUsers?.length) {
+          db.users = cloudUsers;
+          updated = true;
+        }
+
+        const cloudHasCoursesOrQuizzes = (cloudCourses?.length || 0) > 0 || cloudQuizCount > 0;
+        const localHasCoursesOrQuizzes = db.courses.length > 0 || localQuizCount > 0;
+        if (!cloudHasCoursesOrQuizzes && localHasCoursesOrQuizzes) {
+          const pushed = await this.pushUnsyncedToCloud(db);
+          if (pushed) updated = true;
+        }
+
+        if (updated) {
+          saveDB(db);
+          document.dispatchEvent(new CustomEvent('dbupdated'));
+        }
+
+        if (cloudCourses?.length || cloudQuizCount || attempt === attempts - 1) return;
+      } catch (e) {
+        console.warn("syncWithFirebase error:", e);
       }
-
-      if (cloudQuizCount) {
-        if (cloudQuizzes[1]?.length) db.quizzes[1] = cloudQuizzes[1];
-        if (cloudQuizzes[2]?.length) db.quizzes[2] = cloudQuizzes[2];
-        updated = true;
-      }
-
-      if (cloudUsers?.length) {
-        db.users = cloudUsers;
-        updated = true;
-      }
-
-      const cloudHasCoursesOrQuizzes = (cloudCourses?.length || 0) > 0 || cloudQuizCount > 0;
-      const localHasCoursesOrQuizzes = db.courses.length > 0 || localQuizCount > 0;
-      if (!cloudHasCoursesOrQuizzes && localHasCoursesOrQuizzes) {
-        const pushed = await this.pushUnsyncedToCloud(db);
-        if (pushed) updated = true;
-      }
-
-      if (updated) {
-        saveDB(db);
-        document.dispatchEvent(new CustomEvent('dbupdated'));
-      }
-    } catch (e) {
-      console.warn("syncWithFirebase error:", e);
+      await new Promise(r => setTimeout(r, 1200 * (attempt + 1)));
     }
   },
   getCourses(year, type) {
