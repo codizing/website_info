@@ -250,11 +250,15 @@ if (typeof firebase !== 'undefined') {
     }
   };
 
+  window.refreshCloudSync = async function() {
+    if (window.Store && typeof window.Store.syncWithFirebase === 'function') {
+      await window.Store.syncWithFirebase();
+    }
+  };
+
   window.cloudSyncReady = new Promise((resolve) => {
     async function runSync() {
-      if (window.Store && typeof window.Store.syncWithFirebase === 'function') {
-        await window.Store.syncWithFirebase();
-      }
+      await window.refreshCloudSync();
       resolve();
     }
     if (document.readyState === 'loading') {
@@ -265,4 +269,8 @@ if (typeof firebase !== 'undefined') {
   });
 
   console.log("Firebase Firestore connected successfully!");
+} else {
+  window.refreshCloudSync = async function() {};
+  window.cloudSyncReady = Promise.resolve();
+  console.warn("Firebase SDK not loaded — courses may not sync on this device.");
 }
