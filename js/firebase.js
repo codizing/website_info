@@ -250,17 +250,19 @@ if (typeof firebase !== 'undefined') {
     }
   };
 
-  async function syncFromCloud() {
-    if (window.Store && typeof window.Store.syncWithFirebase === 'function') {
-      await window.Store.syncWithFirebase();
+  window.cloudSyncReady = new Promise((resolve) => {
+    async function runSync() {
+      if (window.Store && typeof window.Store.syncWithFirebase === 'function') {
+        await window.Store.syncWithFirebase();
+      }
+      resolve();
     }
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', syncFromCloud);
-  } else {
-    syncFromCloud();
-  }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', runSync);
+    } else {
+      runSync();
+    }
+  });
 
   console.log("Firebase Firestore connected successfully!");
 }
